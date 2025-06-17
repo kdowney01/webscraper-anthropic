@@ -1,0 +1,16 @@
+#!/usr/bin/env python3
+"""
+Webscraper command-line wrapper.
+This script allows running 'webscraper' directly instead of 'python3 -m webscraper_src.cli'
+"""
+
+import sys
+import os
+
+# Add the current directory to Python path so we can import webscraper_src
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from webscraper_src.cli import main
+
+if __name__ == "__main__":
+    main()

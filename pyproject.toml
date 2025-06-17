@@ -36,7 +36,6 @@ dependencies = [
     "configparser>=5.3.0",
     "concurrent-futures>=3.1.1",
     "colorlog>=6.7.0",
-    "robotparser3>=1.0.0",
 ]
 
 [project.optional-dependencies]
@@ -49,7 +48,7 @@ dev = [
 ]
 
 [project.scripts]
-webscraper = "webscraper.cli:main"
+webscraper = "webscraper_src.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/yourusername/web-scraper"

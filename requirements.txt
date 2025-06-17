@@ -27,7 +27,6 @@ concurrent-futures>=3.1.1
 colorlog>=6.7.0
 
 # HTTP compliance (robots.txt)
-robotparser3>=1.0.0
 
 # Development dependencies
 pytest>=7.4.0
