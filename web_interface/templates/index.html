@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Scraper Interface</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- Header Section -->
+        <header class="header">
+            <div class="header-content">
+                <h1 class="main-title">
+                    <i class="fas fa-spider"></i>
+                    Web Scraper
+                </h1>
+                <p class="subtitle">Extract content from websites with ethical scraping practices</p>
+                <div class="version-badge">v0.1.0</div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Configuration Panel -->
+            <section class="config-panel">
+                <div class="panel-header">
+                    <h2><i class="fas fa-cog"></i> Scraping Configuration</h2>
+                </div>
+                
+                <form id="scrape-form" class="config-form">
+                    <!-- URL Input -->
+                    <div class="form-group">
+                        <label for="url-input" class="form-label">
+                            <i class="fas fa-link"></i> Target URL
+                        </label>
+                        <input 
+                            type="url" 
+                            id="url-input" 
+                            name="url"
+                            class="form-input url-input" 
+                            placeholder="Enter URL to scrape (e.g., https://example.com)"
+                            required
+                        >
+                        <div class="input-help">Enter a valid HTTP or HTTPS URL</div>
+                        <div class="input-error" id="url-error"></div>
+                    </div>
+
+                    <!-- Basic Options Row -->
+                    <div class="options-row">
+                        <!-- Robots.txt Checkbox -->
+                        <div class="form-group checkbox-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="ignore-robots" name="ignore_robots" class="checkbox-input">
+                                <span class="checkbox-custom"></span>
+                                <span class="checkbox-text">Ignore robots.txt restrictions</span>
+                            </label>
+                            <div class="warning-text">⚠️ Use responsibly and ethically</div>
+                        </div>
+
+                        <!-- Max Depth Dropdown -->
+                        <div class="form-group">
+                            <label for="max-depth" class="form-label">
+                                <i class="fas fa-layer-group"></i> Max Crawling Depth
+                            </label>
+                            <select id="max-depth" name="max_depth" class="form-select">
+                                <option value="1" selected>1 - Current page only</option>
+                                <option value="2">2 - One level deep</option>
+                                <option value="3">3 - Two levels deep</option>
+                                <option value="4">4 - Three levels deep</option>
+                                <option value="5">5 - Four levels deep</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Content Type Filters -->
+                    <div class="form-group">
+                        <label class="form-label">
+                            <i class="fas fa-filter"></i> Content Types to Download
+                        </label>
+                        <div class="checkbox-row">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="download-images" name="download_images" class="checkbox-input" checked>
+                                <span class="checkbox-custom"></span>
+                                <span class="checkbox-text">
+                                    <i class="fas fa-image"></i> Images
+                                </span>
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="download-videos" name="download_videos" class="checkbox-input" checked>
+                                <span class="checkbox-custom"></span>
+                                <span class="checkbox-text">
+                                    <i class="fas fa-video"></i> Videos
+                                </span>
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="download-text" name="download_text" class="checkbox-input" checked>
+                                <span class="checkbox-custom"></span>
+                                <span class="checkbox-text">
+                                    <i class="fas fa-file-text"></i> Text Content
+                                </span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Advanced Settings (Collapsible) -->
+                    <details class="advanced-settings">
+                        <summary class="advanced-toggle">
+                            <i class="fas fa-tools"></i> Advanced Settings
+                        </summary>
+                        <div class="advanced-content">
+                            <div class="advanced-row">
+                                <div class="form-group">
+                                    <label for="max-workers" class="form-label">
+                                        <i class="fas fa-users"></i> Max Workers: <span id="workers-value">5</span>
+                                    </label>
+                                    <input type="range" id="max-workers" name="max_workers" class="form-range" min="1" max="10" value="5">
+                                </div>
+                                <div class="form-group">
+                                    <label for="delay" class="form-label">
+                                        <i class="fas fa-clock"></i> Delay: <span id="delay-value">1.0</span>s
+                                    </label>
+                                    <input type="range" id="delay" name="delay" class="form-range" min="0.5" max="5.0" step="0.1" value="1.0">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="user-agent" class="form-label">
+                                    <i class="fas fa-user-secret"></i> User Agent
+                                </label>
+                                <input type="text" id="user-agent" name="user_agent" class="form-input" 
+                                       value="WebScraper/1.0" placeholder="Custom user agent string">
+                            </div>
+                        </div>
+                    </details>
+
+                    <!-- Action Buttons -->
+                    <div class="action-buttons">
+                        <button type="submit" class="btn btn-primary" id="start-scraping">
+                            <i class="fas fa-play"></i> Start Scraping
+                        </button>
+                        <button type="button" class="btn btn-secondary" id="dry-run">
+                            <i class="fas fa-eye"></i> Dry Run
+                        </button>
+                        <button type="button" class="btn btn-tertiary" id="clear-form">
+                            <i class="fas fa-eraser"></i> Clear Form
+                        </button>
+                    </div>
+                </form>
+            </section>
+
+            <!-- Progress Section -->
+            <section class="progress-panel" id="progress-panel" style="display: none;">
+                <div class="panel-header">
+                    <h2><i class="fas fa-chart-line"></i> Scraping Progress</h2>
+                    <button class="btn btn-small btn-danger" id="cancel-job">
+                        <i class="fas fa-stop"></i> Cancel
+                    </button>
+                </div>
+                
+                <div class="progress-content">
+                    <div class="progress-bar-container">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progress-fill"></div>
+                        </div>
+                        <span class="progress-text" id="progress-text">0% Complete</span>
+                    </div>
+                    
+                    <div class="status-message" id="status-message">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        Initializing scraper...
+                    </div>
+
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <div class="stat-value" id="stat-urls">0</div>
+                            <div class="stat-label">URLs Processed</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="stat-files">0</div>
+                            <div class="stat-label">Files Downloaded</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="stat-size">0 B</div>
+                            <div class="stat-label">Total Size</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="stat-errors">0</div>
+                            <div class="stat-label">Errors</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Results Section -->
+            <section class="results-panel" id="results-panel" style="display: none;">
+                <div class="panel-header">
+                    <h2><i class="fas fa-check-circle"></i> Scraping Results</h2>
+                </div>
+                
+                <div class="results-content">
+                    <div class="results-summary" id="results-summary">
+                        <!-- Will be populated by JavaScript -->
+                    </div>
+
+                    <div class="results-actions" id="results-actions">
+                        <!-- Will be populated by JavaScript -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Recent Jobs Section -->
+            <section class="history-panel">
+                <div class="panel-header">
+                    <h2><i class="fas fa-history"></i> Recent Scraping Jobs</h2>
+                    <button class="btn btn-small btn-danger" id="clear-history">
+                        <i class="fas fa-trash"></i> Clear History
+                    </button>
+                </div>
+                
+                <div class="history-content" id="history-content">
+                    <!-- Will be populated by JavaScript -->
+                </div>
+                
+                <div class="history-empty" id="history-empty" style="display: none;">
+                    <div class="empty-state">
+                        <i class="fas fa-history empty-icon"></i>
+                        <h3 class="empty-title">No Scraping History</h3>
+                        <p class="empty-description">Your recent scraping jobs will appear here after you start scraping websites.</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="footer-content">
+                <p>&copy; 2024 Web Scraper Tool • Built with Python & Flask</p>
+                <div class="footer-links">
+                    <a href="#" class="footer-link">Documentation</a>
+                    <a href="https://github.com/kdowney01/webscraper-anthropic" class="footer-link">GitHub</a>
+                    <a href="#" class="footer-link">Report Issue</a>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Notification Container -->
+    <div id="notification-container"></div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
