@@ -1,0 +1,52 @@
+# Web Scraper Configuration Example
+# Copy this file to config.yaml and customize as needed
+
+# General settings
+output_dir: "./scraped"
+user_agent: "WebScraper/1.0 (+https://github.com/yourusername/web-scraper)"
+max_workers: 5
+delay_between_requests: 1.0  # seconds
+
+# File type filters
+download_images: true
+download_videos: true
+download_text: true
+
+# Supported file extensions
+image_extensions:
+  - jpg
+  - jpeg
+  - png
+  - gif
+  - webp
+  - svg
+
+video_extensions:
+  - mp4
+  - webm
+  - avi
+  - mov
+  - mkv
+
+# Size limits (in MB, 0 = no limit)
+max_file_size: 100
+max_image_size: 50
+max_video_size: 500
+
+# Crawling settings
+max_depth: 1
+follow_external_links: false
+respect_robots_txt: true
+
+# Retry settings
+max_retries: 3
+retry_delay: 2.0
+
+# Logging
+log_level: INFO
+log_file: "webscraper.log"
+
+# Directory structure
+organize_by_domain: true
+organize_by_date: false
+create_subdirs_for_types: true
