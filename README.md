@@ -41,17 +41,17 @@ pip install -e ".[dev]"
 
 Basic usage:
 ```bash
-webscraper https://example.com
+python3 -m webscraper_src.cli https://example.com
 ```
 
 With configuration file:
 ```bash
-webscraper --config config.yaml https://example.com
+python3 -m webscraper_src.cli --config config.yaml https://example.com
 ```
 
 Multiple URLs:
 ```bash
-webscraper https://example1.com https://example2.com
+python3 -m webscraper_src.cli https://example1.com https://example2.com
 ```
 
 ### Configuration

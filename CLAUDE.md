@@ -34,9 +34,9 @@ flake8 webscraper       # Lint code
 mypy webscraper         # Type checking
 
 # Running the application
-python3 -m webscraper.cli --help                              # Show help
-python3 -m webscraper.cli https://example.com                 # Basic scraping
-python3 -m webscraper.cli --config config.yaml https://example.com  # With config
+python3 -m webscraper_src.cli --help                              # Show help
+python3 -m webscraper_src.cli https://example.com                 # Basic scraping
+python3 -m webscraper_src.cli --config config.yaml https://example.com  # With config
 ```
 
 ## Architecture Notes
