@@ -15,27 +15,47 @@ A Python application for scraping web content including text, images, and videos
 
 1. Clone the repository:
 ```bash
-git clone <repository-url>
-cd web-scraper
+git clone https://github.com/kdowney01/webscraper-anthropic.git
+cd webscraper-anthropic
 ```
 
-2. Create a virtual environment:
+2. Create a virtual environment (recommended):
 ```bash
-python -m venv venv
+python3 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 ```
 
 3. Install dependencies:
 ```bash
-pip install -e .
+# Core scraping dependencies
+python3 -m pip install --user requests beautifulsoup4 lxml click rich pyyaml tqdm validators colorlog filetype
+
+# Web interface dependencies
+python3 -m pip install --user flask flask-socketio
 ```
 
-For development:
+4. For development:
 ```bash
-pip install -e ".[dev]"
+python3 -m pip install --user pytest pytest-cov black flake8 mypy
 ```
 
 ## Usage
+
+### Web Interface (Recommended)
+
+Launch the modern web interface:
+```bash
+python3 run_web_interface.py
+```
+
+Then open your browser to: **http://localhost:5000**
+
+The web interface provides:
+- 🎯 **Interactive form** with real-time validation
+- 📊 **Live progress tracking** with WebSocket updates
+- 📁 **Job history** with re-run functionality
+- 📦 **ZIP downloads** of scraped content
+- 📱 **Responsive design** for mobile and desktop
 
 ### Command Line Interface
 
