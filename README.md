@@ -48,7 +48,7 @@ Launch the modern web interface:
 python3 run_web_interface.py
 ```
 
-Then open your browser to: **http://localhost:5000**
+Then open your browser to: **http://localhost:8080**
 
 The web interface provides:
 - 🎯 **Interactive form** with real-time validation

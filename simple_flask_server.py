@@ -1,5 +1,6 @@
+#!/usr/bin/env python3
 """
-Flask web application for the webscraper interface.
+Simple Flask server without Socket.IO dependencies.
 """
 
 import os
@@ -13,25 +14,24 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 
 from flask import Flask, render_template, request, jsonify, send_file
-from flask_socketio import SocketIO, emit, disconnect
 import zipfile
 import tempfile
 
 # Add parent directory to path to import webscraper modules
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(__file__))
+web_interface_dir = os.path.join(os.path.dirname(__file__), 'web_interface')
+sys.path.insert(0, web_interface_dir)
 
 from webscraper_src.config import Config
 from webscraper_src.scraper import WebScraper
 from webscraper_src.utils import get_domain, is_valid_url
 
 # Initialize Flask app
-app = Flask(__name__)
+app = Flask(__name__, 
+           template_folder=os.path.join(web_interface_dir, 'templates'),
+           static_folder=os.path.join(web_interface_dir, 'static'))
+
 app.config['SECRET_KEY'] = 'webscraper-secret-key-change-in-production'
-socketio = SocketIO(app, 
-                   cors_allowed_origins="*",
-                   async_mode='eventlet',
-                   logger=False,
-                   engineio_logger=False)
 
 # Global state management
 active_jobs: Dict[str, Dict[str, Any]] = {}
@@ -39,7 +39,7 @@ job_history: list = []
 job_lock = threading.Lock()
 
 # Load job history from file if it exists
-HISTORY_FILE = Path(__file__).parent / 'job_history.json'
+HISTORY_FILE = Path(web_interface_dir) / 'job_history.json'
 
 def load_job_history():
     """Load job history from file."""
@@ -88,7 +88,7 @@ def create_job_record(job_id: str, url: str, config: Dict[str, Any]) -> Dict[str
     }
 
 def update_job_status(job_id: str, status: str, **kwargs):
-    """Update job status and emit to client."""
+    """Update job status."""
     with job_lock:
         if job_id in active_jobs:
             active_jobs[job_id]['status'] = status
@@ -100,14 +100,7 @@ def update_job_status(job_id: str, status: str, **kwargs):
                 else:
                     active_jobs[job_id][key] = value
             
-            # Emit update to client
-            update_data = {
-                'job_id': job_id,
-                'status': status,
-                'data': active_jobs[job_id]
-            }
-            print(f"📡 Emitting job_update for {job_id}: {status} - {active_jobs[job_id].get('progress', 0)}%")
-            socketio.emit('job_update', update_data)
+            print(f"📊 Job {job_id}: {status} - {active_jobs[job_id].get('progress', 0)}% - {active_jobs[job_id].get('status_message', '')}")
 
 def run_scraping_job(job_id: str, url: str, config_dict: Dict[str, Any]):
     """Run scraping job in background thread."""
@@ -168,8 +161,9 @@ def run_scraping_job(job_id: str, url: str, config_dict: Dict[str, Any]):
             # Run scraping
             results = scraper.scrape_and_download(url)
             
-            # Update to final progress
-            update_job_status(job_id, 'running', progress=100)
+            # Update to final progress before completion
+            update_job_status(job_id, 'running', progress=98, status_message="Finalizing results...")
+            time.sleep(0.5)  # Brief pause to ensure frontend sees this update
             
             # Process final results
             stats = results.get('stats', {})
@@ -182,13 +176,15 @@ def run_scraping_job(job_id: str, url: str, config_dict: Dict[str, Any]):
                 'errors': download_stats.get('failed_downloads', 0)
             }
             
-            # Complete job
+            # Complete job with 100% progress
             completion_message = f"Scraping completed! {final_stats['urls_processed']} pages, {final_stats['files_downloaded']} files downloaded"
             update_job_status(job_id, 'completed', 
                             progress=100,
                             status_message=completion_message,
                             stats=final_stats,
                             results=results)
+            
+            print(f"✅ Job {job_id} marked as completed with 100% progress")
             
             # Add to history
             job_record = active_jobs[job_id].copy()
@@ -205,7 +201,7 @@ def run_scraping_job(job_id: str, url: str, config_dict: Dict[str, Any]):
             
     except Exception as e:
         error_msg = str(e)
-        print(f"Scraping job {job_id} failed: {error_msg}")  # Debug logging
+        print(f"Scraping job {job_id} failed: {error_msg}")
         update_job_status(job_id, 'failed', 
                          error_message=error_msg,
                          status_message=f"Error: {error_msg[:100]}...")
@@ -219,9 +215,10 @@ def run_scraping_job(job_id: str, url: str, config_dict: Dict[str, Any]):
     finally:
         # Remove from active jobs after delay
         def cleanup_job():
-            time.sleep(30)  # Keep for 30 seconds for client to get final status
+            time.sleep(60)  # Keep for 60 seconds for client to get final status
             with job_lock:
                 if job_id in active_jobs:
+                    print(f"🧹 Cleaning up job {job_id} from active jobs")
                     del active_jobs[job_id]
         
         threading.Thread(target=cleanup_job, daemon=True).start()
@@ -290,45 +287,6 @@ def start_scrape():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/dry-run', methods=['POST'])
-def dry_run():
-    """Perform a dry run analysis."""
-    try:
-        data = request.get_json()
-        
-        if not data or 'url' not in data:
-            return jsonify({'error': 'URL is required'}), 400
-        
-        url = data['url']
-        if not is_valid_url(url):
-            return jsonify({'error': 'Invalid URL format'}), 400
-        
-        # Mock dry run results
-        domain = get_domain(url)
-        max_depth = data.get('max_depth', 1)
-        
-        # Simulate what would be scraped
-        estimated_pages = min(max_depth * 10, 50)  # Rough estimate
-        estimated_images = estimated_pages * 5 if data.get('download_images', True) else 0
-        estimated_videos = estimated_pages * 2 if data.get('download_videos', True) else 0
-        
-        results = {
-            'url': url,
-            'domain': domain,
-            'max_depth': max_depth,
-            'respect_robots': not data.get('ignore_robots', False),
-            'estimated_pages': estimated_pages,
-            'estimated_images': estimated_images,
-            'estimated_videos': estimated_videos,
-            'estimated_total_files': estimated_pages + estimated_images + estimated_videos,
-            'config': data
-        }
-        
-        return jsonify(results)
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
 @app.route('/api/status/<job_id>', methods=['GET'])
 def get_job_status(job_id):
     """Get job status."""
@@ -352,76 +310,6 @@ def get_jobs():
             'history': job_history[:20]  # Last 20 jobs
         })
 
-@app.route('/api/jobs/<job_id>/cancel', methods=['POST'])
-def cancel_job(job_id):
-    """Cancel an active job."""
-    with job_lock:
-        if job_id in active_jobs:
-            update_job_status(job_id, 'cancelled')
-            return jsonify({'message': 'Job cancelled successfully'})
-        else:
-            return jsonify({'error': 'Job not found or not active'}), 404
-
-@app.route('/api/jobs/<job_id>/download', methods=['GET'])
-def download_job_results(job_id):
-    """Download job results as ZIP file."""
-    try:
-        # Find job
-        job = None
-        with job_lock:
-            if job_id in active_jobs:
-                job = active_jobs[job_id]
-            else:
-                for h_job in job_history:
-                    if h_job['id'] == job_id:
-                        job = h_job
-                        break
-        
-        if not job or job['status'] != 'completed':
-            return jsonify({'error': 'Job not found or not completed'}), 404
-        
-        # Create temporary ZIP file
-        temp_zip = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
-        
-        try:
-            with zipfile.ZipFile(temp_zip.name, 'w') as zipf:
-                # Add job info
-                job_info = {
-                    'job_id': job_id,
-                    'url': job['url'],
-                    'completed_at': job['updated_at'],
-                    'stats': job['stats']
-                }
-                zipf.writestr('job_info.json', json.dumps(job_info, indent=2))
-                
-                # Add downloaded files (this would be the actual implementation)
-                # For now, add a placeholder
-                zipf.writestr('README.txt', 
-                    f"Scraping results for: {job['url']}\n"
-                    f"Completed: {job['updated_at']}\n"
-                    f"Files downloaded: {job['stats']['files_downloaded']}\n"
-                    f"URLs processed: {job['stats']['urls_processed']}")
-            
-            return send_file(
-                temp_zip.name,
-                as_attachment=True,
-                download_name=f"scrape_results_{job_id[:8]}.zip",
-                mimetype='application/zip'
-            )
-            
-        finally:
-            # Clean up temp file after a delay
-            def cleanup():
-                time.sleep(60)
-                try:
-                    os.unlink(temp_zip.name)
-                except:
-                    pass
-            threading.Thread(target=cleanup, daemon=True).start()
-            
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
 @app.route('/api/history/clear', methods=['POST'])
 def clear_history():
     """Clear job history."""
@@ -436,38 +324,18 @@ def clear_history():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# WebSocket events
-
-@socketio.on('connect')
-def handle_connect():
-    """Handle client connection."""
-    print('Client connected')
-    emit('connected', {'message': 'Connected to webscraper server'})
-
-@socketio.on('disconnect')
-def handle_disconnect():
-    """Handle client disconnection."""
-    print('Client disconnected')
-
-@socketio.on('subscribe_job')
-def handle_subscribe_job(data):
-    """Subscribe to job updates."""
-    job_id = data.get('job_id')
-    if job_id:
-        # Send current status if job exists
-        with job_lock:
-            if job_id in active_jobs:
-                emit('job_update', {
-                    'job_id': job_id,
-                    'status': active_jobs[job_id]['status'],
-                    'data': active_jobs[job_id]
-                })
-
 # Initialize
 load_job_history()
 
 if __name__ == '__main__':
-    # Run the Flask-SocketIO app
-    print("Starting Web Scraper Interface...")
-    print("Access the interface at: http://localhost:8080")
-    socketio.run(app, debug=False, host='127.0.0.1', port=8080, use_reloader=False)
+    print("🕷️  Simple Web Scraper Interface Starting...")
+    print("📍 Access the interface at: http://localhost:8080")
+    print("🔧 Press Ctrl+C to stop the server")
+    print("✅ No Socket.IO - using simple polling for updates")
+    
+    try:
+        app.run(host='127.0.0.1', port=8080, debug=False, threaded=True)
+    except KeyboardInterrupt:
+        print("\n👋 Web Scraper Interface stopped.")
+    except Exception as e:
+        print(f"❌ Error: {e}")

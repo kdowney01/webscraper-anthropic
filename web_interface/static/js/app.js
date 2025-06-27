@@ -21,25 +21,9 @@ class WebScraperApp {
     }
     
     initializeSocket() {
-        this.socket = io();
-        
-        this.socket.on('connect', () => {
-            console.log('Connected to server');
-            this.showNotification('Connected to server', 'success');
-        });
-        
-        this.socket.on('disconnect', () => {
-            console.log('Disconnected from server');
-            this.showNotification('Disconnected from server', 'warning');
-        });
-        
-        this.socket.on('job_update', (data) => {
-            this.handleJobUpdate(data);
-        });
-        
-        this.socket.on('connected', (data) => {
-            console.log('Server message:', data.message);
-        });
+        // Skip Socket.IO - use polling instead
+        console.log('Using polling for job updates instead of Socket.IO');
+        this.pollInterval = null;
     }
     
     bindEventListeners() {
@@ -178,7 +162,9 @@ class WebScraperApp {
             
             if (response.ok) {
                 this.currentJobId = result.job_id;
-                this.socket.emit('subscribe_job', { job_id: this.currentJobId });
+                console.log('🚀 Job started with ID:', this.currentJobId);
+                console.log('📡 Starting progress polling...');
+                this.startPolling();
                 this.showNotification('Scraping started successfully', 'success');
             } else {
                 throw new Error(result.error || 'Failed to start scraping');
@@ -254,6 +240,7 @@ No files would be downloaded in dry run mode.
             const result = await response.json();
             
             if (response.ok) {
+                this.stopPolling();
                 this.showNotification('Job cancelled successfully', 'info');
             } else {
                 throw new Error(result.error || 'Failed to cancel job');
@@ -299,30 +286,133 @@ No files would be downloaded in dry run mode.
         }
     }
     
-    handleJobUpdate(data) {
-        const { job_id, status, data: jobData } = data;
-        
-        if (job_id === this.currentJobId) {
-            this.updateProgress(jobData);
-            
-            if (status === 'completed') {
-                this.showResults(jobData);
-                this.setFormEnabled(true);
-                this.currentJobId = null;
-                this.loadJobHistory();
-            } else if (status === 'failed') {
-                this.showError(jobData.error_message);
-                this.setFormEnabled(true);
-                this.hideProgressPanel();
-                this.currentJobId = null;
-                this.loadJobHistory();
-            } else if (status === 'cancelled') {
-                this.hideProgressPanel();
-                this.setFormEnabled(true);
-                this.currentJobId = null;
-                this.loadJobHistory();
-            }
+    startPolling() {
+        if (this.pollInterval) {
+            clearInterval(this.pollInterval);
         }
+        
+        console.log('⏰ Starting job status polling...');
+        this.pollInterval = setInterval(() => {
+            this.pollJobStatus();
+        }, 1000); // Poll every second
+        
+        // Also poll immediately
+        this.pollJobStatus();
+    }
+    
+    stopPolling() {
+        if (this.pollInterval) {
+            console.log('⏹️ Stopping job status polling');
+            clearInterval(this.pollInterval);
+            this.pollInterval = null;
+        }
+    }
+    
+    async pollJobStatus() {
+        if (!this.currentJobId) {
+            this.stopPolling();
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/api/status/${this.currentJobId}`);
+            const jobData = await response.json();
+            
+            if (response.ok) {
+                console.log('📊 Polling update:', jobData.status, jobData.progress + '%', jobData.status_message);
+                this.updateProgress(jobData);
+                
+                // Check if job is finished
+                if (jobData.status === 'completed') {
+                    console.log('✅ Job completed successfully!');
+                    this.stopPolling();
+                    
+                    // Ensure progress shows 100%
+                    jobData.progress = 100;
+                    this.updateProgress(jobData);
+                    
+                    // Show completion after a brief delay to see 100%
+                    setTimeout(() => {
+                        this.showResults(jobData);
+                        this.setFormEnabled(true);
+                        this.currentJobId = null;
+                        this.loadJobHistory();
+                    }, 1000);
+                    
+                } else if (jobData.status === 'failed') {
+                    console.log('❌ Job failed:', jobData.error_message);
+                    this.stopPolling();
+                    this.showError(jobData.error_message);
+                    this.setFormEnabled(true);
+                    this.hideProgressPanel();
+                    this.currentJobId = null;
+                    this.loadJobHistory();
+                } else if (jobData.status === 'cancelled') {
+                    console.log('⚠️ Job cancelled');
+                    this.stopPolling();
+                    this.hideProgressPanel();
+                    this.setFormEnabled(true);
+                    this.currentJobId = null;
+                    this.loadJobHistory();
+                }
+            } else {
+                console.error('❌ Error polling job status:', jobData);
+                if (response.status === 404) {
+                    console.log('Job not found, checking history...');
+                    // Job might have moved to history, check there
+                    await this.checkJobInHistory();
+                }
+            }
+        } catch (error) {
+            console.error('❌ Error polling job status:', error);
+        }
+    }
+    
+    async checkJobInHistory() {
+        try {
+            const response = await fetch('/api/jobs');
+            const data = await response.json();
+            
+            if (response.ok && data.history) {
+                const completedJob = data.history.find(job => job.id === this.currentJobId);
+                if (completedJob) {
+                    console.log('✅ Found completed job in history:', completedJob.status);
+                    this.stopPolling();
+                    
+                    if (completedJob.status === 'completed') {
+                        // Ensure progress shows 100%
+                        completedJob.progress = 100;
+                        this.updateProgress(completedJob);
+                        
+                        setTimeout(() => {
+                            this.showResults(completedJob);
+                            this.setFormEnabled(true);
+                            this.currentJobId = null;
+                            this.loadJobHistory();
+                        }, 1000);
+                    } else {
+                        this.setFormEnabled(true);
+                        this.currentJobId = null;
+                        this.loadJobHistory();
+                    }
+                } else {
+                    // Job really not found
+                    this.stopPolling();
+                    this.setFormEnabled(true);
+                    this.currentJobId = null;
+                }
+            }
+        } catch (error) {
+            console.error('❌ Error checking job history:', error);
+            this.stopPolling();
+            this.setFormEnabled(true);
+            this.currentJobId = null;
+        }
+    }
+
+    handleJobUpdate(data) {
+        // Legacy Socket.IO handler - not used with polling
+        console.log('Socket.IO job update (not used):', data);
     }
     
     updateProgress(jobData) {
@@ -336,17 +426,24 @@ No files would be downloaded in dry run mode.
         progressText.textContent = `${Math.round(progress)}% Complete`;
         
         // Update status message
-        let message = 'Processing...';
+        let message = jobData.status_message || 'Processing...';
         let icon = 'fas fa-spinner fa-spin';
         
         if (jobData.status === 'running') {
-            message = `Scraping: ${jobData.url}`;
+            if (jobData.status_message) {
+                message = jobData.status_message;
+            } else {
+                message = `Scraping: ${jobData.url}`;
+            }
         } else if (jobData.status === 'completed') {
-            message = 'Scraping completed successfully!';
+            message = jobData.status_message || 'Scraping completed successfully!';
             icon = 'fas fa-check-circle';
         } else if (jobData.status === 'failed') {
-            message = `Error: ${jobData.error_message}`;
+            message = jobData.status_message || `Error: ${jobData.error_message}`;
             icon = 'fas fa-exclamation-triangle';
+        } else if (jobData.status === 'pending') {
+            message = jobData.status_message || 'Job pending...';
+            icon = 'fas fa-clock';
         }
         
         statusMessage.innerHTML = `<i class="${icon}"></i> ${message}`;
@@ -357,6 +454,15 @@ No files would be downloaded in dry run mode.
         document.getElementById('stat-files').textContent = stats.files_downloaded || 0;
         document.getElementById('stat-size').textContent = this.formatFileSize(stats.total_size || 0);
         document.getElementById('stat-errors').textContent = stats.errors || 0;
+        
+        // Debug logging
+        console.log('Job update received:', {
+            job_id: jobData.id,
+            status: jobData.status,
+            progress: progress,
+            status_message: jobData.status_message,
+            stats: stats
+        });
     }
     
     showResults(jobData) {
@@ -447,13 +553,21 @@ No files would be downloaded in dry run mode.
     
     async loadJobHistory() {
         try {
+            console.log('Loading job history...');
             const response = await fetch('/api/jobs');
             const data = await response.json();
             
             if (response.ok) {
                 this.jobs = data.active_jobs || [];
                 this.history = data.history || [];
+                console.log('Job history loaded:', {
+                    active_jobs: this.jobs.length,
+                    history: this.history.length,
+                    data: data
+                });
                 this.renderHistory();
+            } else {
+                console.error('Failed to load job history:', data);
             }
             
         } catch (error) {
@@ -465,7 +579,10 @@ No files would be downloaded in dry run mode.
         const historyContent = document.getElementById('history-content');
         const historyEmpty = document.getElementById('history-empty');
         
+        console.log('Rendering history:', this.history.length, 'items');
+        
         if (this.history.length === 0) {
+            console.log('No history items, showing empty state');
             historyContent.style.display = 'none';
             historyEmpty.style.display = 'block';
             return;

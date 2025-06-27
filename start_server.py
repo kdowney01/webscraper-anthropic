@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 """
-Convenient script to run the web interface.
+Simple server starter for web interface.
 """
 
 import os
 import sys
 
-# Add the current directory to Python path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-# Import and run the app
+# Set working directory to web_interface
 web_interface_dir = os.path.join(os.path.dirname(__file__), 'web_interface')
+os.chdir(web_interface_dir)
+
+# Add paths
+sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, web_interface_dir)
 
-# Change to web_interface directory for relative imports
-os.chdir(web_interface_dir)
+# Import and run
 from app import app, socketio
 
 if __name__ == '__main__':
@@ -24,7 +24,9 @@ if __name__ == '__main__':
     print()
     
     try:
-        socketio.run(app, debug=False, host='127.0.0.1', port=8080, use_reloader=False)
+        # Run without debug mode to avoid reloader issues
+        socketio.run(app, debug=False, host='127.0.0.1', port=8080, allow_unsafe_werkzeug=True)
     except KeyboardInterrupt:
         print("\n👋 Web Scraper Interface stopped.")
-        sys.exit(0)
+    except Exception as e:
+        print(f"❌ Error starting server: {e}")

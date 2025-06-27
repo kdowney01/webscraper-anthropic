@@ -30,7 +30,7 @@ python3 app.py
 ```
 
 ### 3. Open Browser
-Visit: **http://localhost:5000**
+Visit: **http://localhost:8080**
 
 ## Architecture
 
